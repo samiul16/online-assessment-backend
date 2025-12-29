@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+
+  email     String?  @unique
+  phone     String?  @unique
+
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  roles     UserRole[]
+  attempts  Attempt[]
+  profile   Profile?
+  achievements UserAchievement[]
+  activities   ActivityLog[]
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  avatar      String?
+  bio         String?
+  institution String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/* =====================
+   ACHIEVEMENTS
+===================== */
+
+model Achievement {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId])
+}
+
+/* =====================
+   ACTIVITY / UPDATES
+===================== */
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  type      ActivityType
+  message   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ActivityType {
+  LOGIN
+  QUIZ_ATTEMPT
+  ACHIEVEMENT_EARNED
+  PROFILE_UPDATED
+}
+
+
+
+/* =====================
+   ROLE BASED ACCESS
+===================== */
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+/* =====================
+   ASSESSMENT MODULE
+===================== */
+
+model Assessment {
+  id          String     @id @default(uuid())
+  title       String
+  weekNumber  Int
+  startDate   DateTime
+  endDate     DateTime
+  status      AssessmentStatus @default(DRAFT) // DRAFT / PUBLISHED
+  createdAt   DateTime   @default(now())
+
+  questions   Question[]
+  attempts    Attempt[]
+}
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Question {
+  id           String    @id @default(uuid())
+  text         String
+  marks        Int       @default(1)
+  image        String?   // store image path or URL
+  assessmentId String
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+  options      Option[]
+}
+
+model Option {
+  id         String   @id @default(uuid())
+  serial     String   // A/B/C/D
+  text       String
+  isCorrect  Boolean  @default(false)
+  questionId String
+
+  question   Question @relation(fields: [questionId], references: [id])
+  answers    Answer[]
+}
+
+
+
+model Attempt {
+  id            String   @id @default(uuid())
+  userId        String
+  assessmentId  String
+  score         Int      @default(0)
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  user          User        @relation(fields: [userId], references: [id])
+  assessment    Assessment  @relation(fields: [assessmentId], references: [id])
+  answers       Answer[]
+}
+
+model Answer {
+  id        String @id @default(uuid())
+  attemptId String
+  optionId  String
+
+  attempt   Attempt @relation(fields: [attemptId], references: [id])
+  option    Option  @relation(fields: [optionId], references: [id])
+}
