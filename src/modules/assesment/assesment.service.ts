@@ -38,6 +38,39 @@ export const updateAssessment = async (
   });
 };
 
+export const getAllAssessments = async (user: any) => {
+  console.log("user ", user);
+  const query: { status?: "DRAFT" | "PUBLISHED" } = {};
+
+  if (user.roles.includes("ADMIN")) {
+    // Admin can see all assessments
+  } else {
+    // Regular user can only see published assessments
+    query.status = "PUBLISHED";
+  }
+
+  console.log("Query:", query);
+
+  return prisma.assessment.findMany({
+    where: query,
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+export const getAssessmentDetails = async (id: string) => {
+  console.log("assessment details id", id);
+  return prisma.assessment.findUnique({
+    where: { id },
+    include: {
+      questions: {
+        include: {
+          options: true,
+        },
+      },
+    },
+  });
+};
+
 export const deleteAssessment = async (id: string) => {
   return prisma.assessment.delete({
     where: { id },

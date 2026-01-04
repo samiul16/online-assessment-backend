@@ -138,16 +138,11 @@ model Assessment {
   weekNumber  Int
   startDate   DateTime
   endDate     DateTime
-  status      AssessmentStatus @default(DRAFT) // DRAFT / PUBLISHED
+  status      AssessmentStatus @default(DRAFT)
   createdAt   DateTime   @default(now())
 
   questions   Question[]
   attempts    Attempt[]
-}
-
-enum AssessmentStatus {
-  DRAFT
-  PUBLISHED
 }
 
 model Question {
@@ -157,26 +152,23 @@ model Question {
   image        String?
   assessmentId String
 
-  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade) // Add onDelete: Cascade
   options      Option[]
 
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
 
-
 model Option {
   id         String   @id @default(uuid())
-  serial     String   // A/B/C/D
+  serial     String
   text       String
   isCorrect  Boolean  @default(false)
   questionId String
 
-  question   Question @relation(fields: [questionId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade) // Add onDelete: Cascade
   answers    Answer[]
 }
-
-
 
 model Attempt {
   id            String   @id @default(uuid())
@@ -186,8 +178,8 @@ model Attempt {
   startedAt     DateTime @default(now())
   completedAt   DateTime?
 
-  user          User        @relation(fields: [userId], references: [id])
-  assessment    Assessment  @relation(fields: [assessmentId], references: [id])
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment    Assessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade) // Add onDelete: Cascade
   answers       Answer[]
 }
 
@@ -196,6 +188,13 @@ model Answer {
   attemptId String
   optionId  String
 
-  attempt   Attempt @relation(fields: [attemptId], references: [id])
-  option    Option  @relation(fields: [optionId], references: [id])
+  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade) // Add onDelete: Cascade
+  option    Option  @relation(fields: [optionId], references: [id], onDelete: Cascade) // Add onDelete: Cascade
 }
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
+}
+
+

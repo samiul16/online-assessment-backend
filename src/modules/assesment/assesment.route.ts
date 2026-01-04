@@ -9,12 +9,14 @@ import {
 const router = express.Router();
 
 // Protect all assessment routes with admin middleware
-router.use(authAdminMiddleware);
+// router.use(authAdminMiddleware);
 
 // Assessment CRUD
 router.post("/", AssessmentController.createAssessment);
 router.put("/:id", AssessmentController.updateAssessment);
 router.delete("/:id", AssessmentController.deleteAssessment);
+router.get("/", authMiddleware, AssessmentController.getAllAssessments);
+router.get("/:id", authMiddleware, AssessmentController.getAssessmentDetails);
 
 // Question CRUD
 router.post("/:assessmentId/question", AssessmentController.addQuestion);

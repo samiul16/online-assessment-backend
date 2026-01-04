@@ -22,6 +22,28 @@ export const updateAssessment = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllAssessments = async (req: Request, res: Response) => {
+  try {
+    console.log("Get all assessment");
+    const assessments = await AssessmentService.getAllAssessments(req.user);
+    res.json({ assessments });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getAssessmentDetails = async (req: Request, res: Response) => {
+  try {
+    console.log("getAssessmentDetails");
+    const assessment = await AssessmentService.getAssessmentDetails(
+      req.params.id
+    );
+    res.json({ assessment });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const deleteAssessment = async (req: Request, res: Response) => {
   try {
     await AssessmentService.deleteAssessment(req.params.id);
