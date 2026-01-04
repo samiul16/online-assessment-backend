@@ -79,26 +79,67 @@ export const getNextQuestionForStudent = async (
   userId: string,
   assessmentId: string
 ) => {
-  // Find or create attempt
+  // 1. Find the latest attempt
   let attempt = await prisma.attempt.findFirst({
-    where: { userId, assessmentId, completedAt: null },
+    where: { userId, assessmentId },
+    orderBy: { startedAt: "desc" },
   });
 
+  // Helper function to fetch full history with user answers
+  const fetchHistory = async (attemptId: string, currentScore: number) => {
+    const quizHistory = await prisma.question.findMany({
+      where: { assessmentId },
+      include: {
+        options: {
+          include: {
+            answers: { where: { attemptId } },
+          },
+        },
+      },
+      orderBy: { id: "asc" },
+    });
+
+    return {
+      completed: true,
+      attemptId,
+      score: currentScore,
+      totalQuestions: quizHistory.length,
+      questions: quizHistory.map((q) => ({
+        id: q.id,
+        text: q.text,
+        marks: q.marks,
+        image: q.image,
+        options: q.options.map((o) => ({
+          id: o.id,
+          text: o.text,
+          serial: o.serial,
+          isCorrect: o.isCorrect,
+          isSelected: o.answers.length > 0,
+        })),
+      })),
+    };
+  };
+
+  // 2. Scenario: Quiz is already marked as COMPLETED in DB
+  if (attempt && attempt.completedAt) {
+    return await fetchHistory(attempt.id, attempt.score);
+  }
+
+  // 3. Scenario: Create NEW attempt if none exists
   if (!attempt) {
     attempt = await prisma.attempt.create({
       data: { userId, assessmentId },
     });
   }
 
-  // Get all answered questionIds
+  // 4. Scenario: Quiz is IN PROGRESS - Find next question
   const answeredOptions = await prisma.answer.findMany({
     where: { attemptId: attempt.id },
-    include: { option: true },
+    select: { option: { select: { questionId: true } } },
   });
 
   const answeredQuestionIds = answeredOptions.map((a) => a.option.questionId);
 
-  // Get next unanswered question
   const nextQuestion = await prisma.question.findFirst({
     where: {
       assessmentId,
@@ -106,13 +147,30 @@ export const getNextQuestionForStudent = async (
     },
     include: {
       options: {
-        select: { id: true, serial: true, text: true }, // hide correct answer
+        select: { id: true, serial: true, text: true },
       },
     },
-    orderBy: { id: "asc" }, // consistent order
+    orderBy: { id: "asc" },
   });
 
-  return { attemptId: attempt.id, question: nextQuestion };
+  // 5. Scenario: Just finished (No more questions left)
+  if (!nextQuestion) {
+    // Mark as completed if not already
+    if (!attempt.completedAt) {
+      attempt = await prisma.attempt.update({
+        where: { id: attempt.id },
+        data: { completedAt: new Date() },
+      });
+    }
+    return await fetchHistory(attempt.id, attempt.score);
+  }
+
+  // 6. Return the single next question
+  return {
+    completed: false,
+    attemptId: attempt.id,
+    question: nextQuestion,
+  };
 };
 
 // Submit one answer and get next question

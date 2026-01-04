@@ -40,13 +40,8 @@ export const getNextQuestion = async (req: Request, res: Response) => {
       assessmentId
     );
 
-    if (!result.question) {
-      return res.json({
-        message: "Assessment completed",
-        attemptId: result.attemptId,
-      });
-    }
-
+    // Stop overriding the result. The service now provides
+    // either the next question OR the full history.
     res.json(result);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
