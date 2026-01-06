@@ -1,3 +1,4 @@
+import { AchievementName } from "@prisma/client";
 import prisma from "../../config/prisma";
 
 type AnswerInput = {
@@ -174,29 +175,30 @@ export const getNextQuestionForStudent = async (
 };
 
 // Submit one answer and get next question
+
 export const submitAnswerAndGetNext = async (
   userId: string,
   assessmentId: string,
   optionId: string
 ) => {
   return await prisma.$transaction(async (tx) => {
-    // Find the active attempt
+    // 1. Find the active attempt
     let attempt = await tx.attempt.findFirst({
       where: { userId, assessmentId, completedAt: null },
     });
+
     if (!attempt) {
-      attempt = await tx.attempt.create({
-        data: { userId, assessmentId },
-      });
+      throw new Error("No active attempt found for this quiz.");
     }
 
+    // 2. Validate the option
     const option = await tx.option.findUnique({
       where: { id: optionId },
       include: { question: true },
     });
     if (!option) throw new Error("Option not found");
 
-    // Save answer
+    // 3. Save current answer
     await tx.answer.create({
       data: {
         attemptId: attempt.id,
@@ -204,7 +206,7 @@ export const submitAnswerAndGetNext = async (
       },
     });
 
-    // Update score if correct
+    // 4. Update current attempt score if correct
     if (option.isCorrect) {
       attempt = await tx.attempt.update({
         where: { id: attempt.id },
@@ -212,7 +214,7 @@ export const submitAnswerAndGetNext = async (
       });
     }
 
-    // Get next question
+    // 5. Check if there are more questions
     const answeredOptions = await tx.answer.findMany({
       where: { attemptId: attempt.id },
       include: { option: true },
@@ -228,18 +230,87 @@ export const submitAnswerAndGetNext = async (
       orderBy: { id: "asc" },
     });
 
-    // Mark attempt as completed if no more questions
+    let unlockedAchievement = null;
+
+    // 6. IF QUIZ IS COMPLETE
     if (!nextQuestion) {
+      // Mark attempt as completed
       await tx.attempt.update({
         where: { id: attempt.id },
         data: { completedAt: new Date() },
       });
+
+      // UPDATE USER GLOBAL PROGRESS
+      const progress = await tx.userProgress.upsert({
+        where: { userId: userId },
+        update: {
+          totalScore: { increment: attempt.score },
+          totalQuizzesCompleted: { increment: 1 },
+        },
+        create: {
+          userId: userId,
+          totalScore: attempt.score,
+          totalQuizzesCompleted: 1,
+        },
+      });
+
+      /* ========================================================
+         SERIAL ACHIEVEMENT LOGIC (ONE AFTER ANOTHER)
+         ======================================================== */
+
+      // Define the order based on your Enums
+      const achievementOrder: AchievementName[] = [
+        AchievementName.NOVICE_SCHOLAR,
+        AchievementName.RISING_STAR,
+        AchievementName.SKILL_SEEKER,
+        AchievementName.KNOWLEDGE_MASTER,
+        AchievementName.PRO_EXPLORER,
+        AchievementName.ELITE_ADVENTURER,
+        AchievementName.GRAND_WIZARD,
+        AchievementName.UNIVERSAL_LEGEND,
+      ];
+
+      // Determine level based on total quizzes completed
+      // e.g., 1st quiz = Index 0 (Novice), 2nd quiz = Index 1 (Rising Star)
+      const currentLevelIndex = progress.totalQuizzesCompleted - 1;
+
+      if (currentLevelIndex < achievementOrder.length) {
+        const targetEnum = achievementOrder[currentLevelIndex];
+
+        // Find the achievement definition in the DB
+        const achievementDef = await tx.achievement.findUnique({
+          where: { name: targetEnum },
+        });
+
+        if (achievementDef) {
+          // Check if user already owns this specific achievement
+          const existingAssignment = await tx.userAchievement.findFirst({
+            where: {
+              userId: userId,
+              achievementId: achievementDef.id,
+            },
+          });
+
+          // Award it if they don't have it yet
+          if (!existingAssignment) {
+            await tx.userAchievement.create({
+              data: {
+                userId: userId,
+                achievementId: achievementDef.id,
+              },
+            });
+            unlockedAchievement = achievementDef; // Store to return to frontend
+          }
+        }
+      }
     }
 
     return {
       attemptId: attempt.id,
-      question: nextQuestion,
+      question: nextQuestion, // null if quiz is over
       score: attempt.score,
+      completed: !nextQuestion,
+      unlockedAchievement, // This will contain the achievement data if one was just earned
     };
   });
 };

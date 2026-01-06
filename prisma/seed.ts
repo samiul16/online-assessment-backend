@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, AchievementName } from "@prisma/client";
 import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
@@ -69,12 +69,76 @@ async function main() {
     });
 
     /* =====================
+       ACHIEVEMENTS (NEW)
+    ===================== */
+    const achievementsData = [
+      {
+        name: AchievementName.NOVICE_SCHOLAR,
+        title: "Novice Scholar",
+        description: "Your first steps into a larger world.",
+        icon: "🌱",
+      },
+      {
+        name: AchievementName.RISING_STAR,
+        title: "Rising Star",
+        description: "Consistency is key, and you're proving it.",
+        icon: "⭐",
+      },
+      {
+        name: AchievementName.SKILL_SEEKER,
+        title: "Skill Seeker",
+        description: "Actively expanding your horizons.",
+        icon: "🔍",
+      },
+      {
+        name: AchievementName.KNOWLEDGE_MASTER,
+        title: "Knowledge Master",
+        description: "You have shown deep understanding.",
+        icon: "🧠",
+      },
+      {
+        name: AchievementName.PRO_EXPLORER,
+        title: "Pro Explorer",
+        description: "Venturing into advanced territories.",
+        icon: "🚀",
+      },
+      {
+        name: AchievementName.ELITE_ADVENTURER,
+        title: "Elite Adventurer",
+        description: "Battle-hardened and ready for anything.",
+        icon: "⚔️",
+      },
+      {
+        name: AchievementName.GRAND_WIZARD,
+        title: "Grand Wizard",
+        description: "A true master of the arts and sciences.",
+        icon: "🧙‍♂️",
+      },
+      {
+        name: AchievementName.UNIVERSAL_LEGEND,
+        title: "Universal Legend",
+        description: "The pinnacle of achievement. You are legendary.",
+        icon: "👑",
+      },
+    ];
+
+    for (const achievement of achievementsData) {
+      await tx.achievement.upsert({
+        where: { name: achievement.name },
+        update: {
+          title: achievement.title,
+          description: achievement.description,
+          icon: achievement.icon,
+        },
+        create: achievement,
+      });
+    }
+
+    /* =====================
        USERS
     ===================== */
-
     const passwordHash = await bcrypt.hash("Password@123", 10);
 
-    // ADMIN USER
     const adminUser = await tx.user.upsert({
       where: { email: "admin@assessment.com" },
       update: {},
@@ -82,15 +146,10 @@ async function main() {
         name: "System Admin",
         email: "admin@assessment.com",
         password: passwordHash,
-        roles: {
-          create: {
-            roleId: adminRole.id,
-          },
-        },
+        roles: { create: { roleId: adminRole.id } },
       },
     });
 
-    // STUDENT USER 1
     const studentUser1 = await tx.user.upsert({
       where: { email: "student1@assessment.com" },
       update: {},
@@ -98,15 +157,10 @@ async function main() {
         name: "Student One",
         email: "student1@assessment.com",
         password: passwordHash,
-        roles: {
-          create: {
-            roleId: studentRole.id,
-          },
-        },
+        roles: { create: { roleId: studentRole.id } },
       },
     });
 
-    // STUDENT USER 2
     const studentUser2 = await tx.user.upsert({
       where: { email: "student2@assessment.com" },
       update: {},
@@ -114,19 +168,14 @@ async function main() {
         name: "Student Two",
         email: "student2@assessment.com",
         password: passwordHash,
-        roles: {
-          create: {
-            roleId: studentRole.id,
-          },
-        },
+        roles: { create: { roleId: studentRole.id } },
       },
     });
 
-    console.log("Seeded Users:");
+    console.log("Seeding Completed Successfully:");
     console.log({
-      adminUser: adminUser.email,
-      studentUser1: studentUser1.email,
-      studentUser2: studentUser2.email,
+      achievements: achievementsData.length,
+      users: 3,
     });
   });
 }
